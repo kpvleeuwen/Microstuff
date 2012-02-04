@@ -163,7 +163,7 @@ void TimerOne::attachInterrupt(void (*isr)(), long microseconds)
   isrCallback = isr;                                       // register the user's callback with the real ISR
   TIMSK1 = _BV(TOIE1);                                     // sets the timer overflow interrupt enable bit
 	// AR - remove sei() - might be running with interrupts disabled (eg inside an ISR), so leave unchanged
-//  sei();                                                   // ensures that interrupts are globally enabled
+  sei();                                                   // ensures that interrupts are globally enabled
   resume();
 }
 
@@ -199,10 +199,9 @@ void TimerOne::start()	// AR addition, renamed by Lex to reflect it's actual rol
 	cli();
 	tcnt1 = TCNT1;
 	SREG = oldSREG;
-  } while (tcnt1==0); 
- 
-//  TIFR1 = 0xff;              		// AR - Clear interrupt flags
-//  TIMSK1 = _BV(TOIE1);              // sets the timer overflow interrupt enable bit
+  } while (tcnt1==0);
+  TIFR1 = 0xff;              		// AR - Clear interrupt flags
+  TIMSK1 = _BV(TOIE1);              // sets the timer overflow interrupt enable bit
 }
 
 void TimerOne::stop()

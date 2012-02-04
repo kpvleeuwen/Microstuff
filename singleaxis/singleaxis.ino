@@ -5,7 +5,7 @@
 #include "TimerOne.h"
 
 #define MinPulseTime (200L)
-#define MaxPulseTime (200*1000L)
+#define MaxPulseTime (400*1000L)
 
 PortI2C _myI2C (1, PortI2C::KHZ400);
 LiquidCrystalI2C _lcd (_myI2C);
@@ -25,6 +25,7 @@ void setup()
 	_altButtons.mode(INPUT);
 	_altButtons.mode2(INPUT);
 	Serial.write("Motor init.\n");
+
 	// set up the LCD's number of rows and columns: 
 	_lcd.begin(16, 2);
 	// Print a message to the LCD.
@@ -32,24 +33,27 @@ void setup()
 	_lcd.setCursor(0, 1);
 	// turn the backlight on
 	_lcd.backlight();
-	Serial.write("LCD init.\n");
-	Timer1.initialize(MaxPulseTime);
-	Timer1.attachInterrupt(pulse, MaxPulseTime);
+//	Serial.write("LCD init.\n");
+	Timer1.initialize();
+        Timer1.attachInterrupt(pulse, MaxPulseTime);
 	Timer1.start();
- }
+}
 
 void pulse() 
 {
-    //if( usBetweenPulses !=0)
-	{
-		_myMotor.digiWrite2(positiveDirection); // direction
-		_myMotor.digiWrite(!_myMotor.digiRead()); // toggle step bit
-		if( positiveDirection )
-			pulses ++;
-		else
-			pulses --;	 
-	} 
-    Timer1.resume();
+  if( usBetweenPulses !=0)
+  {
+    if(!_myMotor.digiRead()) // TOGGLE
+    {  _myMotor.digiWrite2(positiveDirection); // direction
+      _myMotor.digiWrite(true);
+      if( positiveDirection )
+        pulses ++;
+      else
+        pulses --;	 
+    }
+    else
+      _myMotor.digiWrite(false);
+  } 
 }
 
 void loop() 
@@ -63,7 +67,7 @@ void loop()
 			_lcd.print('-');
 		// 16 microsteps, 200 pulses/rev => 3200 pulses/rev, 
 		// toggle at interrupt: another factor 2
-		float revsPerDay = 3200/(usBetweenPulses * 1e-6f * 24*60*60 * 2);
+		float revsPerDay = (3200 * 24*60*60 * 2)/(usBetweenPulses * 1e-6f );
 		_lcd.print(revsPerDay);
 	    _lcd.print(' '); // empty for the case the prev print was a char less
 	} 
@@ -81,7 +85,7 @@ void loop()
 	long period = clamp(usBetweenPulses, MinPulseTime, MaxPulseTime);
 	// set for next pulse, the timer keeps running 
         Timer1.setPeriod(period);
-        sei();
+      
 }
 
 
@@ -102,18 +106,18 @@ void handleInput()
 		return;
 	}
 	int mils = millis(); // timestamp 'now', all logic should be based on this moment
-	if( mils = 0)
+	if( mils == 0)
 		mils = 1; // prevent an overflow to mess up the 'unpressed' value
 	
 	if( upPressed )
 	{
-		if(upPressedMillis > 0 && mils - upPressedMillis < 500)
+		if(upPressedMillis > 0 && (mils - upPressedMillis) < 500)
 			return; // a single press will be a single increment, holding the button down will quickly increment
 		
 		Serial.write('+');
 		if( upPressedMillis == 0)
 			upPressedMillis = mils;
-		if( positiveDirection)
+		if( positiveDirection )
 			DecreasePulseTime(); // go faster up
 		else
 			IncreasePulseTime();
@@ -123,12 +127,12 @@ void handleInput()
 	
 	if( downPressed )
 	{
-		if(downPressedMillis > 0 && mils - downPressedMillis < 500)
+		if(downPressedMillis > 0 && (mils - downPressedMillis) < 500)
 			return; // a single press will be a single increment, holding the button down will quickly increment
 		Serial.write('-');
 		if( downPressedMillis == 0)
 			downPressedMillis = mils;
-		if( !positiveDirection)
+		if( !positiveDirection )
 			DecreasePulseTime(); // go faster down
 		else
 			IncreasePulseTime();
