@@ -74,6 +74,53 @@ void TimerOne::setPeriod(long microseconds)		// AR modified for atomic access
   TCCR1B |= clockSelectBits;                                          // reset clock select register, and starts the clock
 }
 
+
+long TimerOne::trySetPeriod(long microseconds)		// KvL added modified for exact result
+{
+  const long CYCLES_PER_US = (F_CPU / 2000000);
+  long cycles = CYCLES_PER_US * microseconds;                                // the counter runs backwards after TOP, interrupt is at BOTTOM so divide microseconds by 2
+  if(cycles < RESOLUTION)              
+  {
+    clockSelectBits = _BV(CS10);              // no prescale, full xtal
+  }
+  else if((cycles >>= 3) < RESOLUTION) 
+  { 
+    clockSelectBits = _BV(CS11);              // prescale by /8
+    microseconds = (cycles << 3 ) / CYCLES_PER_US; // this is the exact period
+  }
+  else if((cycles >>= 3) < RESOLUTION) 
+  {
+    clockSelectBits = _BV(CS11) | _BV(CS10);  // prescale by /64
+    microseconds = (cycles << 6 ) / CYCLES_PER_US; // this is the exact period
+  }
+  else if((cycles >>= 2) < RESOLUTION)
+  {
+    clockSelectBits = _BV(CS12);              // prescale by /256
+    microseconds = (cycles << 8 ) / CYCLES_PER_US; // this is the exact period
+  }
+  else if((cycles >>= 2) < RESOLUTION)
+  {
+    clockSelectBits = _BV(CS12) | _BV(CS10);  // prescale by /1024   
+    microseconds = (cycles << 10 ) / CYCLES_PER_US; // this is the exact period
+  }
+  else
+  {  
+    cycles = RESOLUTION - 1;
+    clockSelectBits = _BV(CS12) | _BV(CS10);  // request was out of bounds, set as maximum
+    microseconds = (cycles << 10 ) / CYCLES_PER_US; // this is the exact period
+  }
+  
+  oldSREG = SREG;				
+  cli();							// Disable interrupts for 16 bit register access
+  ICR1 = pwmPeriod = cycles;                                          // ICR1 is TOP in p & f correct pwm mode
+  SREG = oldSREG;
+  
+  TCCR1B &= ~(_BV(CS10) | _BV(CS11) | _BV(CS12));
+  TCCR1B |= clockSelectBits;                                          // reset clock select register, and starts the clock
+  return microseconds;
+}
+
+
 void TimerOne::setPwmDuty(char pin, int duty)
 {
   unsigned long dutyCycle = pwmPeriod;

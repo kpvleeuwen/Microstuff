@@ -62,6 +62,7 @@ class TimerOne
     void attachInterrupt(void (*isr)(), long microseconds=-1);
     void detachInterrupt();
     void setPeriod(long microseconds);
+    long trySetPeriod(long microseconds)		// KvL added modified for exact result
     void setPwmDuty(char pin, int duty);
     void (*isrCallback)();
 };
